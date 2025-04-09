@@ -1,23 +1,17 @@
-# ATRI-miband9P
-# 小米开源文档
-<https://iot.mi.com/vela/quickapp>
-## 下载
-<https://www.bandbbs.cn/threads/15782/>
-### 转换脚本parse_script
-将scn解出的json文件转换为convert_script输入格式
+## MiBand-ATRI-Enhanced
+### 简介
+此存储库为基于 Xiaomi Vela JS 构建的视觉小说游戏《ATRI: My Dear Moments》，参考其他开源作者已有项目改进重构而来。
+### 改变
+相较原作者发布的版本主要进行如下改进：
+- 引入动态加载机制，大幅提升运行效率
+- 添加切换动画，提供更流畅的游戏体验
+- 优化文字动画机制，降低内存占用
+- 优化界面操作逻辑，防止误触
+- 优化 UI 视觉效果
+- 优化代码可读性
 
-### 转换脚本convert_script
-用法：
+注：截至 2025/4/9 此项目刚刚完成调试，可能仍存在部分 BUG ，欢迎提出 issue 。
+### 参考链接
+小米官方文档：https://iot.mi.com/vela/quickapp
 
- 	python convert_script.py input文件夹 output文件夹
-
-输入格式：
-
-	夏生	……唉，跟你说这些也没用
-		我放下腿使劲踩了踩，确认义足的触感。 [Images: bg002]
-		关节的活动稍微顺滑了一些。
-	凯瑟琳	天气不错嘛。完美适合潜水，赶快开始吧？
-	夏生	让我吃个早饭啊
-		说完我才想起来，早饭已经被她吃光了。
-	水菜萌	上……上午好——
-		这时，船外传来了另一道声音。
+原项目链接：https://github.com/liuyuze61/ATRI-miband9P
