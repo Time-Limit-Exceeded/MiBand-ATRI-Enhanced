@@ -1,0 +1,374 @@
+<template>
+	<!-- 主界面 -->
+	<div class="page" @swipe="handleSwipe">
+		<!-- 背景图 -->
+		<image static src="/common/cover.png"></image>
+		<image style="position: absolute; top: 0; left: 0" if="{{trueEnd}}" src="/common/ATRI_TrueEnding.png"></image>
+		<!-- 主菜单按钮 -->
+		<text static class="menu-btn" style="top: 165px" if="{{trueEnd}}" @click="toGame('TE')">
+			TE.
+		</text>
+		<text static class="menu-btn" style="top: 240px" @click="toGame(null)">
+			开始
+		</text>
+		<text static class="menu-btn" style="top: 315px" @click="toRecovery">
+			加载
+		</text>
+		<text static class="menu-btn" style="top: 390px" @click="toSettings">
+			设置
+		</text>
+		<!-- 存档加载页面 -->
+		<div class="page" style="position: absolute" if="{{recoveryPage}}" @swipe="handleSwipe">
+			<!-- 背景图片 -->
+			<image static src="/common/bg.png"></image>
+			<!-- 列表容器 -->
+			<scroll scroll-y="true" bounces="true" class="save-scroll page">
+				<!-- 存档按钮 -->
+				<text class="save-btn" style="width: 276px" for="{{recoveryData}}" @click="toGame($idx)">
+					本地存档 #{{ $idx + 1 }}
+				</text>
+			</scroll>
+		</div>
+		<!-- 设置页面 -->
+		<div class="page" if="{{settingsPage}}" @swipe="handleSwipe">
+			<!-- 背景图片 -->
+			<image static src="/common/bg.png"></image>
+			<div class="page" style="background-color: rgba(0, 0, 0, 0.7)"></div>
+			<!-- 滑动条 -->
+			<div class="settings-bg">
+				<text static class="text" style="top: 26px">显示速度</text>
+				<text static class="text" style="top: 26px; left: 30px">慢</text>
+				<text static class="text" style="top: 26px; right: 30px">快</text>
+				<slider class="slider" style="top: 88px" min="0" max="100" step="1" value="{{speed}}"
+					onchange="changeTextSpeed"></slider>
+				<text static class="text" style="top: 122px">文字大小</text>
+				<text static class="text" style="top: 122px; left: 30px">小</text>
+				<text static class="text" style="top: 122px; right: 30px">大</text>
+				<slider class="slider" style="top: 184px" min="20" max="28" step="1" value="{{settingsData.textSize}}"
+					onchange="changeTextSize"></slider>
+			</div>
+			<!-- 操作按钮 -->
+			<text static class="settings-btn" style="top: 275px; left: 30px; width: 130px" @click="writeSettings">
+				保存
+			</text>
+			<text static class="settings-btn" style="top: 275px; right: 30px; width: 130px" @click="resetSettings">
+				重置
+			</text>
+			<!-- 文字预览区域 -->
+			<scroll scroll-y="true" bounces="true" class="text-box">
+				<text style="
+					text-align: left; 
+					font-weight: bold; 
+					font-size: {{settingsData.textSize}}px;
+					color: #ffffff;
+					">
+					{{ showText }}
+				</text>
+			</scroll>
+		</div>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+import prompt from "@system.prompt";
+
+export default {
+	// 变量声明
+	private: {
+		// 加载页
+		recoveryPage: false,
+		recoveryData: [],
+		// 设置页
+		settingsPage: false,
+		settingsData: { textSpeed: 50, textSize: 24 },
+		// 预览文本
+		showText: "",
+		index: 0,
+		speed: 50,
+		intervalId: null,
+		timeoutId: null,
+		// 结局相关
+		trueEnd: false,
+		fin: { HE: false, BE: false },
+	},
+
+	// 加载页面时执行
+	onInit() {
+		this.readData("settingsData", (callback) => {
+			if (callback) {
+				this.settingsData = callback;
+				this.speed = 100 - this.settingsData.textSpeed;
+			} else {
+				console.info("检测到首次运行");
+				this.settingsData = { textSpeed: 50, textSize: 24 };
+				this.writeSettings();
+			}
+		});
+		this.readData("recoveryData", (callback) => (this.recoveryData = callback));
+		this.readData("fin", (callback) => {
+			if (callback) {
+				this.fin = callback;
+				if (this.fin.HE && this.fin.BE) this.trueEnd = true;
+			}
+		});
+	},
+
+	// 销毁页面时执行
+	onDestroy() {
+		this.clearAllTimers();
+		global.runGC();
+	},
+
+	// 读取数据
+	readData(name, callback) {
+		storage.get({
+			key: name,
+			success: (data) => {
+				if (data === "") {
+					callback(null);
+					console.info(`存储的数据 ${name} 为空`);
+				} else callback(JSON.parse(data));
+			},
+			fail: () => {
+				console.error(`读取数据 ${name} 失败`);
+				callback(null);
+			},
+		});
+	},
+
+	// 滑动事件处理
+	handleSwipe(event) {
+		// 设置页防误触
+		if (this.settingsPage) return;
+
+		if (event.direction === "right") {
+			if (this.recoveryPage || this.settingsPage) this.back();
+			else this.$app.exit();
+		}
+	},
+
+	// 返回上级
+	back() {
+		if (this.recoveryPage) this.recoveryPage = false;
+		else if (this.settingsPage) {
+			this.settingsPage = false;
+			this.clearAllTimers();
+			this.index = 0;
+			this.showText = "";
+		}
+	},
+
+	// 跳转游戏页
+	toGame(index) {
+		router.replace({
+			uri: `pages/detail`,
+			params: { recoveryIndex: JSON.stringify(index) },
+		});
+	},
+
+	// 跳转加载页
+	toRecovery() {
+		if (this.recoveryData && this.recoveryData.length > 0)
+			this.recoveryPage = true;
+		else prompt.showToast({ message: "无可用存档" });
+	},
+
+	// 跳转设置页
+	toSettings() {
+		this.settingsPage = true;
+		setTimeout(() => {
+			this.animateText();
+		}, 50);
+	},
+
+	// 写入设置
+	writeSettings() {
+		storage.set({
+			key: "settingsData",
+			value: JSON.stringify({
+				textSpeed: this.settingsData.textSpeed,
+				textSize: this.settingsData.textSize,
+			}),
+			success: () => {
+				console.info("写入设置成功");
+				if (this.settingsPage) this.back();
+			},
+			fail: () => {
+				console.error("写入设置失败");
+				prompt.showToast({ message: "保存失败，请重试" });
+			},
+		});
+	},
+
+	// 恢复默认设置
+	resetSettings() {
+		this.settingsData.textSize = 24;
+		this.settingsData.textSpeed = 50;
+		this.speed = 50;
+		this.animateText();
+	},
+
+	// 更改文字大小
+	changeTextSize(e) {
+		this.settingsData.textSize = e.progress;
+	},
+
+	// 更改文字速度
+	changeTextSpeed(e) {
+		this.speed = e.progress;
+		this.settingsData.textSpeed = 100 - this.speed;
+		this.animateText();
+	},
+
+	// 演示文字动画效果
+	animateText() {
+		// 确保只在设置页执行
+		if (!this.settingsPage) return;
+		// 准备工作
+		this.clearAllTimers();
+		const demoText = `AaBbCc123456789\n这是一段演示文字\nPreview Text`;
+		this.index = 0;
+		this.showText = "";
+		// 极值处理
+		if (this.settingsData.textSpeed <= 0) {
+			this.showText = demoText;
+			this.index = demoText.length;
+			return;
+		}
+		// 定义动画循环
+		const animateCycle = () => {
+			this.intervalId = setInterval(() => {
+				if (this.index >= demoText.length) {
+					this.clearAllTimers();
+					this.timeoutId = setTimeout(() => {
+						this.index = 0;
+						this.showText = "";
+						animateCycle();
+					}, 3000);
+					return;
+				}
+				this.showText += demoText.charAt(this.index++);
+			}, this.settingsData.textSpeed);
+		};
+		// 启动初始动画
+		animateCycle();
+	},
+
+	// 清除所有定时器
+	clearAllTimers() {
+		if (this.intervalId) {
+			clearInterval(this.intervalId);
+			this.intervalId = null;
+		}
+		if (this.timeoutId) {
+			clearTimeout(this.timeoutId);
+			this.timeoutId = null;
+		}
+	},
+};
+</script>
+
+<style>
+/* 基础页面样式 */
+.page {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 336px;
+	height: 480px;
+}
+/* 通用文本样式 */
+.text {
+	position: absolute;
+	font-size: 28px;
+	font-weight: bold;
+	color: #ffffff;
+}
+/* 主页按钮样式 */
+.menu-btn {
+	position: absolute;
+	left: 30px;
+	height: 60px;
+	width: 120px;
+	border-radius: 30px;
+	font-size: 28px;
+	text-align: center;
+	font-weight: bold;
+	color: #ffffff;
+	background-color: rgba(0, 0, 0, 0.4);
+}
+/* 存档列表容器 */
+.save-scroll {
+	position: absolute;
+	bottom: 0;
+	top: 0;
+	left: 0;
+	right: 0;
+	padding: 30px 0;
+	overflow: hidden;
+	flex-wrap: nowrap;
+	flex-direction: column;
+	align-items: center;
+	background-color: rgba(0, 0, 0, 0.7);
+}
+/* 存档按钮样式 */
+.save-btn {
+	width: 276px;
+	height: 60px;
+	border-radius: 30px;
+	margin-bottom: 15px;
+	font-size: 28px;
+	font-weight: bold;
+	text-align: center;
+	color: #ffffff;
+	background-color: rgba(255, 255, 255, 0.3);
+}
+/* 设置面板背景样式 */
+.settings-bg {
+	position: absolute;
+	top: 30px;
+	left: 30px;
+	width: 276px;
+	height: 230px;
+	border-radius: 30px;
+	justify-content: center;
+	background-color: rgba(255, 255, 255, 0.3);
+}
+/* 设置页按钮样式 */
+.settings-btn {
+	position: absolute;
+	width: 123px;
+	height: 60px;
+	border-radius: 30px;
+	font-size: 28px;
+	font-weight: bold;
+	text-align: center;
+	color: #ffffff;
+	background-color: rgba(255, 255, 255, 0.3);
+}
+/* 预览文本容器样式 */
+.text-box {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 350px;
+	bottom: 0;
+	padding: 9px 15px 15px 15px;
+	display: flex;
+	flex-direction: column;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	overflow: hidden;
+	background-color: rgba(255, 255, 255, 0.3);
+}
+/* 滑动条样式 */
+.slider {
+	position: absolute;
+	width: 256px;
+	color: rgba(0, 0, 0, 0.4);
+	selected-color: rgb(255, 255, 255);
+	block-color: rgb(255, 255, 255);
+}
+</style>

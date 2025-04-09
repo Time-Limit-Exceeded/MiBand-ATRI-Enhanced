@@ -1,0 +1,605 @@
+<template>
+	<div class="page" @swipe="handleSwipe">
+		<!-- 主对话页 -->
+		<div class="page" style="background-color: #000000" @click="nextDialogue">
+			<!-- 背景图片 -->
+			<image src="/common/{{background}}"></image>
+			<!-- 前景图片（若有） -->
+			<image src="/common/{{gameData.scenes[currentScene].Img}}" style="
+				position: absolute;	
+				top:{{gameData.scenes[currentScene].ImgTop}}px;
+				left:{{gameData.scenes[currentScene].ImgLeft}}px;
+				" if="{{gameData.scenes[currentScene].Img !== undefined}}"></image>
+
+			<!-- 角色名称 -->
+			<text style="
+				position: absolute;
+				bottom: 160px;
+				left: 0;
+				height:{{settingsData.textSize+20}}px;
+				width:{{ character.length*(settingsData.textSize+5)+30}}px;
+				padding: 15px 15px 0px 15px;
+				font-size: {{settingsData.textSize+5}}px;
+				font-weight: bold;
+				color: #ffffff;
+				background-color: rgba(0, 0, 0, 0.4);
+				" if="{{character!='' && gameData.scenes[currentScene].choices == undefined && END ===''}}">
+				{{ character }}
+			</text>
+
+			<!-- 对话内容 -->
+			<scroll scroll-y="true" bounces="true" class="text-box" id="text-box"
+				if="{{gameData.scenes[currentScene].choices == undefined && END ===''}}">
+				<text style="
+				text-align: left; 
+				font-weight: bold; 
+				font-size: {{settingsData.textSize}}px;
+				color: #ffffff;
+				">
+					{{ showText }}
+				</text>
+			</scroll>
+		</div>
+		<!-- 选项页 -->
+		<div class="menu" if="{{gameData.scenes[currentScene].choices != undefined}}">
+			<!-- 选项1 -->
+			<text class="btn" style="margin-bottom: 28px" @click="selectChoice(0)">
+				{{ gameData.scenes[currentScene].choices[0].text }}
+			</text>
+			<!-- 选项2 -->
+			<text class="btn" @click="selectChoice(1)">
+				{{ gameData.scenes[currentScene].choices[1].text }}
+			</text>
+		</div>
+		<!-- 渐入渐出动画遮罩 -->
+		<div class="fade page" style="opacity: {{fadeOpacity}};" if="{{showFade}}"></div>
+		<!-- 菜单页 -->
+		<div class="menu" if="{{menuPage && !editRecoveryPage && !loadRecoveryPage}}">
+			<text class="btn" @click="back()">回到游戏</text>
+			<text class="btn" @click="exit()">返回主页</text>
+			<text class="btn" @click="skipScene()">跳过场景</text>
+			<text class="btn" @click="skipChapter()">跳过章节</text>
+			<text class="btn" @click="toRecoveryPage('edit')">管理存档</text>
+			<text class="btn" @click="toRecoveryPage('load')">加载存档</text>
+		</div>
+		<!-- 存档管理页 -->
+		<scroll class="scroll page" scroll-y="true" bounces="true" if="{{editRecoveryPage}}" @swipe="handleSwipe">
+			<text class="btn" for="{{recoveryData}}" @click="saveRecoveryData($idx)" @longpress="deleteRecoveryData($idx)">
+				本地存档 #{{ $idx + 1 }}
+			</text>
+			<text class="btn" @click="saveRecoveryData('new')">+ 创建新存档</text>
+		</scroll>
+		<!-- 加载存档页 -->
+		<scroll class="scroll page" scroll-y="true" bounces="true" if="{{loadRecoveryPage}}" @swipe="handleSwipe">
+			<text class="btn" for="{{recoveryData}}" @click="loadRecoveryData($idx)" @longpress="printData($idx)">
+				本地存档 #{{ $idx + 1 }}
+			</text>
+		</scroll>
+		<!-- 结局页 -->
+		<div class="page" style="justify-content: center; background-color: rgba(0, 0, 0, 0.7)" if="{{END}}"
+			@swipe="handleSwipe">
+			<text style="position: absolute; top: 68px; font-size: 48px; color: #ffffff">
+				达成结局
+			</text>
+			<text style="position: absolute; top: 148px; font-size: 32px; color: #ffffff">
+				{{ END }}
+			</text>
+			<text style="
+					position: absolute;
+					bottom: 78px;
+					width: 180px;
+					height: 80px;
+					border-radius: 40px;
+					font-size: 28px;
+					font-weight: bold;
+					text-align: center;
+					color: #ffffff;
+					background-color: rgba(255, 255, 255, 0.3);
+				" @click="exit">
+				返回主页
+			</text>
+		</div>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+import prompt from "@system.prompt";
+import file from "@system.file";
+
+// 章节-文件名映射表
+const fileNameMap = {
+	0: "b999",
+	1: "b101",
+	2: "b102",
+	3: "b103",
+	4: "b111",
+	5: "b112",
+	6: "b113",
+	7: "b114",
+	8: "b121",
+	9: "b122",
+	10: "b123",
+	11: "b124",
+	12: "b200",
+	13: "b201",
+	14: "b202",
+	15: "b203",
+	16: "b204",
+	17: "b205",
+	18: "b206",
+	19: "b207",
+	20: "b301",
+	21: "b302",
+	22: "b303",
+	23: "b304",
+	24: "b401",
+	25: "b402",
+	26: "b403",
+	27: "b404",
+	28: "b405",
+	29: "b406",
+	30: "b407",
+	31: "b501",
+	BE: "b601",
+	TE: "b701",
+};
+
+export default {
+	// 变量声明
+	private: {
+		// 游戏状态
+		chapter: 0,
+		currentScene: 0,
+		currentDialogue: 0,
+		choice: [],
+		END: "",
+		// 对话状态
+		character: "",
+		showText: "",
+		index: 0,
+		intervalId: null,
+		canContinue: true,
+		// 页面状态
+		menuPage: false,
+		loadRecoveryPage: false,
+		editRecoveryPage: false,
+		showFade: false,
+		fadeOpacity: 0,
+		background: "bg.png",
+		// 游戏数据
+		gameData: { scenes: [] },
+		// 存档数据
+		recoveryIndex: null,
+		recoveryData: [],
+		// 设置数据
+		settingsData: { textSpeed: 50, textSize: 24 },
+	},
+
+	// 页面初始化
+	onInit() {
+		this.recoveryIndex = JSON.parse(this.recoveryIndex);
+		this.readData("settingsData", (callback) => {
+			if (callback) this.settingsData = callback;
+			else this.settingsData = { textSpeed: 50, textSize: 24 };
+		});
+		this.readData("recoveryData", (callback) => {
+			if (callback) {
+				this.recoveryData = callback;
+				if (this.recoveryIndex != null)
+					this.loadRecoveryData(this.recoveryIndex);
+				else this.loadChapter(0);
+			} else this.loadChapter(0);
+		});
+	},
+
+	// 页面销毁
+	onDestroy() {
+		this.clearTimer();
+		global.runGC();
+	},
+
+	// 读取数据
+	readData(name, callback) {
+		storage.get({
+			key: name,
+			success: (data) => {
+				if (data === "") {
+					callback(null);
+					console.info(`存储的数据 ${name} 为空`);
+				} else callback(JSON.parse(data));
+			},
+			fail: () => {
+				console.error(`读取数据 ${name} 失败`);
+				callback(null);
+			},
+		});
+	},
+
+	// 写入数据
+	writeData(name, data) {
+		storage.set({
+			key: name,
+			value: JSON.stringify(data),
+			success: () => console.info(`写入数据 ${name} 成功`),
+			fail: () => console.info(`写入数据 ${name} 失败`),
+		});
+	},
+
+	// 加载章节
+	loadChapter(chapter) {
+		file.readText({
+			uri: `/common/${fileNameMap[chapter]}.txt`,
+			success: (data) => {
+				this.gameData.scenes = [];
+				this.gameData.scenes = JSON.parse(data.text);
+				this.loadScene(this.currentScene);
+			},
+			fail: function (_err, code) {
+				console.error(`加载章节 ${chapter} 失败，错误码 ${code}`);
+				prompt.showToast({ message: "加载资源失败，请重试" });
+			},
+		});
+	},
+
+	// 加载场景
+	loadScene(sceneIndex) {
+		const scene = this.gameData.scenes[sceneIndex];
+		this.background = scene.background;
+		if (scene.choices) {
+			return;
+		}
+		this.showDialogue(scene.dialogues[this.currentDialogue]);
+	},
+
+	// 显示对话
+	showDialogue(dialogue) {
+		// 准备工作
+		this.clearTimer();
+		this.character = dialogue.character;
+		this.index = 0;
+		this.showText = "";
+		this.canContinue = false;
+		// 极值处理
+		if (this.settingsData.textSpeed <= 0) {
+			this.showText = dialogue.text;
+			this.canContinue = true;
+			return;
+		}
+		// 逐字动画
+		this.intervalId = setInterval(() => {
+			if (this.index >= dialogue.text.length) {
+				this.clearTimer();
+				this.canContinue = true;
+				return;
+			}
+			this.showText += dialogue.text.charAt(this.index++);
+		}, this.settingsData.textSpeed);
+	},
+
+	// 清除定时器
+	clearTimer() {
+		if (this.intervalId) {
+			clearInterval(this.intervalId);
+			this.intervalId = null;
+		}
+	},
+
+	// 下一段对话
+	nextDialogue() {
+		// 仅当允许继续时执行
+		if (!this.canContinue) return;
+		// 重置状态并滚动到顶部
+		this.scrollToTop();
+		this.canContinue = false;
+		// 获取当前场景数据和最后一段对话数据
+		const scene = this.gameData.scenes[this.currentScene];
+		const lastSceneIndex = this.gameData.scenes.length - 1;
+		const lastDialogueIndex = scene.dialogues.length - 1;
+		const lastDialogue = scene.dialogues[lastDialogueIndex];
+		// --- 场景内对话未结束 ---
+		if (this.currentDialogue < lastDialogueIndex)
+			this.showDialogue(scene.dialogues[++this.currentDialogue]);
+		// --- 场景内对话已结束 ---
+		else {
+			// 当前场景非最后一个场景
+			if (this.currentScene < lastSceneIndex) this.nextScene(lastDialogue);
+			// 当前场景是最后一个场景
+			else this.nextChapter(lastDialogue);
+		}
+	},
+
+	// 处理场景跳转
+	nextScene(lastDialogue) {
+		// 若最后对话定义了 toScenes，按偏移量跳转
+		if (lastDialogue.toScenes !== undefined)
+			this.currentScene += lastDialogue.toScenes;
+		// 否则跳转到下一个场景
+		else this.currentScene++;
+		this.currentDialogue = 0;
+		this.loadScene(this.currentScene);
+	},
+
+	// 处理章节跳转
+	nextChapter(lastDialogue) {
+		// 分支条件处理
+		if (lastDialogue.branch !== undefined)
+			this.handleBranch(lastDialogue.branch);
+		// 结局处理
+		else if (lastDialogue.END !== undefined) {
+			this.END = lastDialogue.END;
+			this.saveFin(this.END);
+		}
+		// 默认加载下一章节
+		else this.loadChapterWithFade(++this.chapter);
+	},
+
+	// 处理分支条件
+	handleBranch(branchData) {
+		// 检查玩家选择是否匹配分支条件
+		if (JSON.stringify(this.choice) === JSON.stringify(branchData.choices))
+			this.chapter = branchData.toChapter;
+		// 未匹配则进入坏结局
+		else this.chapter = "BE";
+		// 加载分支章节
+		this.currentScene = 0;
+		this.currentDialogue = 0;
+		this.loadChapterWithFade(this.chapter);
+	},
+
+	// 加载章节（渐入渐出）
+	loadChapterWithFade(chapter) {
+		// 显示遮罩层
+		this.showFade = true;
+		this.fadeOpacity = 0;
+		// 微小延迟确保 DOM 渲染
+		setTimeout(() => {
+			// 启动渐入动画
+			this.fadeOpacity = 1;
+			setTimeout(() => {
+				// 渐入完成后加载章节
+				this.currentScene = 0;
+				this.currentDialogue = 0;
+				this.loadChapter(chapter);
+				// 渐出动画
+				this.fadeOpacity = 0;
+				setTimeout(() => (this.showFade = false), 500);
+			}, 500);
+		}, 50);
+	},
+
+	// 滑动事件处理
+	handleSwipe(event) {
+		if (this.END) return;
+		if (event.direction === "right") {
+			if (!this.menuPage) this.menuPage = true;
+			if (this.loadRecoveryPage || this.editRecoveryPage) this.back();
+		}
+	},
+
+	// 返回上级
+	back() {
+		if (this.loadRecoveryPage) this.loadRecoveryPage = false;
+		else if (this.editRecoveryPage) this.editRecoveryPage = false;
+		else if (this.menuPage) this.menuPage = false;
+	},
+
+	// 回主界面
+	exit() {
+		router.replace({ uri: "/pages/index" });
+	},
+
+	// 选择选项
+	selectChoice(choiceIndex) {
+		this.choice.push(choiceIndex);
+		this.currentScene +=
+			this.gameData.scenes[this.currentScene].choices[choiceIndex].nextScene;
+		this.currentDialogue = 0;
+		this.loadScene(this.currentScene);
+	},
+
+	// 跳转存档页面
+	toRecoveryPage(name) {
+		if (name === "load")
+			if (this.recoveryData && this.recoveryData.length > 0)
+				this.loadRecoveryPage = true;
+			else prompt.showToast({ message: "无可用存档" });
+		if (name === "edit") this.editRecoveryPage = true;
+	},
+
+	// 新增/覆写存档
+	saveRecoveryData(index) {
+		const tempData = {
+			chapter: this.chapter,
+			currentScene: this.currentScene,
+			currentDialogue: this.currentDialogue,
+			choice: this.choice,
+		};
+		if (index === "new") {
+			if (this.recoveryData.length >= 10)
+				prompt.showToast({ message: "存档数已达上限，长按可删除存档" });
+			else {
+				this.recoveryData.push(tempData);
+				this.writeData("recoveryData", this.recoveryData);
+			}
+		} else {
+			this.recoveryData[index] = tempData;
+			this.writeData("recoveryData", this.recoveryData);
+			prompt.showToast({ message: `已覆盖本地存档 #${index + 1}` });
+		}
+	},
+
+	// 删除存档
+	deleteRecoveryData(index,event) {
+		this.recoveryData.splice(index, 1);
+		this.writeData("recoveryData", this.recoveryData);
+		prompt.showToast({ message: `已删除本地存档 #${index + 1}` });
+	},
+
+	// 加载存档
+	loadRecoveryData(index) {
+		if (index === "TE") {
+			this.loadChapter("TE");
+			return;
+		}
+		// 恢复游戏状态
+		const tempData = this.recoveryData[index];
+		this.chapter = tempData.chapter;
+		this.currentScene = tempData.currentScene;
+		this.currentDialogue = tempData.currentDialogue;
+		this.choice = tempData.choice;
+		// 退出加载界面
+		this.menuPage = false;
+		this.loadRecoveryPage = false;
+		// 加载游戏数据
+		this.loadChapter(this.chapter);
+	},
+
+	// 跳过场景
+	skipScene() {
+		// 获取当前场景对象
+		const currentScene = this.gameData.scenes[this.currentScene];
+		// 获取当前场景的最后一段对话
+		const lastDialogue =
+			currentScene.dialogues?.[currentScene.dialogues.length - 1];
+		// 检查当前场景是否存在选项
+		const hasChoices = currentScene.choices !== undefined;
+		// 检查最后对话是否包含强制剧情节点（END/branch/toScenes）
+		const hasCriticalNode =
+			lastDialogue?.END || lastDialogue?.branch || lastDialogue?.toScenes;
+		// 检查目标场景是否超出章节范围
+		const isTargetSceneInvalid =
+			this.currentScene + 1 >= this.gameData.scenes.length;
+		// 综合判断
+		if (hasChoices || hasCriticalNode)
+			prompt.showToast({ message: "关键场景，无法跳过" });
+		else if (isTargetSceneInvalid)
+			prompt.showToast({ message: "已是本章最后场景" });
+		else {
+			// 执行跳过
+			this.currentDialogue = 0;
+			this.loadScene(++this.currentScene);
+			this.menuPage = false;
+		}
+	},
+
+	// 跳过章节
+	skipChapter() {
+		// 检查当前章节是否存在选项
+		const hasChoices = this.gameData.scenes.some(
+			(scene) => scene.choices !== undefined
+		);
+		// 检查当前章节是否处于结局或分支场景
+		const hasEndingOrBranch = this.gameData.scenes.some((scene) =>
+			scene.dialogues?.some((d) => d.END || d.branch)
+		);
+		// 检查下一章节是否存在
+		const isNextChapterValid = fileNameMap.hasOwnProperty(this.chapter + 1);
+		// 综合判断
+		if (hasChoices || hasEndingOrBranch)
+			prompt.showToast({ message: "关键章节，无法跳过" });
+		else if (!isNextChapterValid) prompt.showToast({ message: "已是最后一章" });
+		else {
+			// 执行跳过
+			this.loadChapterWithFade(++this.chapter);
+			this.menuPage = false;
+		}
+	},
+
+	// 保存结局
+	saveFin(end) {
+		this.readData("fin", (callback) => {
+			let fin = callback || { HE: false, BE: false };
+			if (end === "Happy Ending") fin.HE = true;
+			else if (end === "Bad Ending") fin.BE = true;
+			this.writeData("fin", fin);
+		});
+	},
+
+	//（debug）打印存档数据
+	printData(index) {
+		console.log(`本地存档 #${index + 1} 数据:`, this.recoveryData[index]);
+	},
+
+	// 滚动对话到顶部
+	scrollToTop() {
+		this.$element("text-box").scrollTo({
+			top: 0,
+			left: 0,
+			behavior: "instant",
+		});
+	},
+};
+</script>
+
+<style>
+/* 基础页面样式 */
+.page {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 336px;
+	height: 480px;
+}
+/* 通用菜单样式 */
+.menu {
+	position: absolute;
+	bottom: 0;
+	top: 0;
+	left: 0;
+	right: 0;
+	flex-wrap: nowrap;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	background-color: rgba(0, 0, 0, 0.7);
+}
+/* 通用列表样式 */
+.scroll {
+	position: absolute;
+	bottom: 0;
+	top: 0;
+	left: 0;
+	right: 0;
+	padding: 30px 0;
+	overflow: hidden;
+	flex-wrap: nowrap;
+	flex-direction: column;
+	align-items: center;
+	background-color: rgba(0, 0, 0, 0.7);
+}
+/* 通用按钮样式 */
+.btn {
+	width: 280px;
+	height: 56px;
+	border-radius: 28px;
+	margin-bottom: 14px;
+	font-size: 28px;
+	font-weight: bold;
+	text-align: center;
+	color: #ffffff;
+	background-color: rgba(255, 255, 255, 0.3);
+}
+/* 对话文字容器样式 */
+.text-box {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 160px;
+	padding: 9px 15px 15px 15px;
+	display: flex;
+	flex-direction: column;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	overflow: hidden;
+	background-color: rgba(0, 0, 0, 0.4);
+}
+/* 渐入渐出遮罩样式 */
+.fade {
+	opacity: 0;
+	transition: opacity 500ms ease-in-out;
+	background-color: #000000;
+}
+</style>
