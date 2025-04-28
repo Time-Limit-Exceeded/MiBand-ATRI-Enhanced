@@ -2,19 +2,21 @@
 	<!-- 主界面 -->
 	<div class="page" @swipe="handleSwipe">
 		<!-- 背景图 -->
-		<image static src="/common/cover.png"></image>
-		<image style="position: absolute; top: 0; left: 0" if="{{trueEnd}}" src="/common/ATRI_TrueEnding.png"></image>
+		<image static src="/common/cover.png" if="{{!recoveryPage && !settingsPage}}"></image>
+		<image style="position: absolute; top: 0; left: 0" if="{{trueEnd && !recoveryPage && !settingsPage}}"
+			src="/common/ATRI_TrueEnding.png"></image>
 		<!-- 主菜单按钮 -->
-		<text static class="menu-btn" style="top: 165px" if="{{trueEnd}}" @click="toGame('TE')">
+		<text static class="menu-btn" style="top: 165px" if="{{trueEnd && !recoveryPage && !settingsPage}}"
+			@click="toGame('TE')">
 			TE.
 		</text>
-		<text static class="menu-btn" style="top: 240px" @click="toGame(null)">
+		<text static class="menu-btn" style="top: 240px" if="{{!recoveryPage && !settingsPage}}" @click="toGame(null)">
 			开始
 		</text>
-		<text static class="menu-btn" style="top: 315px" @click="toRecovery">
+		<text static class="menu-btn" style="top: 315px" if="{{!recoveryPage && !settingsPage}}" @click="toRecovery">
 			加载
 		</text>
-		<text static class="menu-btn" style="top: 390px" @click="toSettings">
+		<text static class="menu-btn" style="top: 390px" if="{{!recoveryPage && !settingsPage}}" @click="toSettings">
 			设置
 		</text>
 		<!-- 存档加载页面 -->
@@ -88,7 +90,6 @@ export default {
 		index: 0,
 		speed: 50,
 		intervalId: null,
-		timeoutId: null,
 		// 结局相关
 		trueEnd: false,
 		fin: { HE: false, BE: false },
@@ -117,8 +118,7 @@ export default {
 
 	// 销毁页面时执行
 	onDestroy() {
-		this.clearAllTimers();
-		global.runGC();
+		this.clearTimer();
 	},
 
 	// 读取数据
@@ -154,7 +154,7 @@ export default {
 		if (this.recoveryPage) this.recoveryPage = false;
 		else if (this.settingsPage) {
 			this.settingsPage = false;
-			this.clearAllTimers();
+			this.clearTimer();
 			this.index = 0;
 			this.showText = "";
 		}
@@ -227,7 +227,7 @@ export default {
 		// 确保只在设置页执行
 		if (!this.settingsPage) return;
 		// 准备工作
-		this.clearAllTimers();
+		this.clearTimer();
 		const demoText = `AaBbCc123456789\n这是一段演示文字\nPreview Text`;
 		this.index = 0;
 		this.showText = "";
@@ -237,34 +237,21 @@ export default {
 			this.index = demoText.length;
 			return;
 		}
-		// 定义动画循环
-		const animateCycle = () => {
-			this.intervalId = setInterval(() => {
-				if (this.index >= demoText.length) {
-					this.clearAllTimers();
-					this.timeoutId = setTimeout(() => {
-						this.index = 0;
-						this.showText = "";
-						animateCycle();
-					}, 3000);
-					return;
-				}
-				this.showText += demoText.charAt(this.index++);
-			}, this.settingsData.textSpeed);
-		};
-		// 启动初始动画
-		animateCycle();
+		// 执行动画
+		this.intervalId = setInterval(() => {
+			if (this.index >= demoText.length) {
+				this.clearTimer();
+				return;
+			}
+			this.showText += demoText.charAt(this.index++);
+		}, this.settingsData.textSpeed);
 	},
 
 	// 清除所有定时器
-	clearAllTimers() {
+	clearTimer() {
 		if (this.intervalId) {
 			clearInterval(this.intervalId);
 			this.intervalId = null;
-		}
-		if (this.timeoutId) {
-			clearTimeout(this.timeoutId);
-			this.timeoutId = null;
 		}
 	},
 };
