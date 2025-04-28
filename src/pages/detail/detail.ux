@@ -229,6 +229,7 @@ export default {
 
 	// 加载章节
 	loadChapter(chapter) {
+		global.runGC();
 		file.readText({
 			uri: `/common/${fileNameMap[chapter]}.txt`,
 			success: (data) => {
@@ -431,7 +432,7 @@ export default {
 	},
 
 	// 删除存档
-	deleteRecoveryData(index,event) {
+	deleteRecoveryData(index, event) {
 		this.recoveryData.splice(index, 1);
 		this.writeData("recoveryData", this.recoveryData);
 		prompt.showToast({ message: `已删除本地存档 #${index + 1}` });
