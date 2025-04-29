@@ -409,7 +409,7 @@
       },
       {
         "character": "",
-        "text": "铛♪"
+        "text": "铛"
       },
       {
         "character": "夏生",

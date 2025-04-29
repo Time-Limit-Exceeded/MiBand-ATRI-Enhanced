@@ -943,7 +943,7 @@
       },
       {
         "character": "亚托莉",
-        "text": "是的♪"
+        "text": "是的"
       },
       {
         "character": "夏生",
