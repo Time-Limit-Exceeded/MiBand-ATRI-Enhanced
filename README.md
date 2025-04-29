@@ -17,4 +17,4 @@
 
 原项目链接：https://github.com/liuyuze61/ATRI-miband9P
 
-BandBBS: https://www.bandbbs.cn/resources/2825
+BandBBS：https://www.bandbbs.cn/resources/2825
