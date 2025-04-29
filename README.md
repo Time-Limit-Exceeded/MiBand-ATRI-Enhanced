@@ -9,9 +9,12 @@
 - 优化界面操作逻辑，防止误触
 - 优化 UI 视觉效果
 - 优化代码可读性
+- 错别字更正
 
-注：截至 2025/4/9 此项目刚刚完成调试，可能仍存在部分 BUG ，欢迎提出 issue 。
+注：此项目首次完成于 2025/4/9 ，可能仍存在部分 BUG ，欢迎提 issue 。
 ### 参考链接
 小米官方文档：https://iot.mi.com/vela/quickapp
 
 原项目链接：https://github.com/liuyuze61/ATRI-miband9P
+
+BandBBS: https://www.bandbbs.cn/resources/2825
