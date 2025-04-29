@@ -41,7 +41,7 @@
 			</scroll>
 		</div>
 		<!-- 选项页 -->
-		<div class="menu" if="{{gameData.scenes[currentScene].choices != undefined}}">
+		<div class="menu page" if="{{gameData.scenes[currentScene].choices != undefined}}">
 			<!-- 选项1 -->
 			<text class="btn" style="margin-bottom: 28px" @click="selectChoice(0)">
 				{{ gameData.scenes[currentScene].choices[0].text }}
@@ -54,7 +54,7 @@
 		<!-- 渐入渐出动画遮罩 -->
 		<div class="fade page" style="opacity: {{fadeOpacity}};" if="{{showFade}}"></div>
 		<!-- 菜单页 -->
-		<div class="menu" if="{{menuPage && !editRecoveryPage && !loadRecoveryPage}}">
+		<div class="menu page" if="{{menuPage && !editRecoveryPage && !loadRecoveryPage}}">
 			<text class="btn" @click="back()">回到游戏</text>
 			<text class="btn" @click="exit()">返回主页</text>
 			<text class="btn" @click="skipScene()">跳过场景</text>
@@ -545,11 +545,6 @@ export default {
 }
 /* 通用菜单样式 */
 .menu {
-	position: absolute;
-	bottom: 0;
-	top: 0;
-	left: 0;
-	right: 0;
 	flex-wrap: nowrap;
 	flex-direction: column;
 	justify-content: center;
@@ -558,11 +553,6 @@ export default {
 }
 /* 通用列表样式 */
 .scroll {
-	position: absolute;
-	bottom: 0;
-	top: 0;
-	left: 0;
-	right: 0;
 	padding: 30px 0;
 	overflow: hidden;
 	flex-wrap: nowrap;
@@ -573,9 +563,10 @@ export default {
 /* 通用按钮样式 */
 .btn {
 	width: 280px;
-	height: 56px;
-	border-radius: 28px;
-	margin-bottom: 14px;
+	height: 60px;
+	border-radius: 30px;
+	margin-top: 7px;
+	margin-bottom: 7px;
 	font-size: 28px;
 	font-weight: bold;
 	text-align: center;
